@@ -1,6 +1,7 @@
 //const Bikes = require("../models/bike.js");
 const Users = require("../models/user.js");
 const bcrypt = require('bcrypt-as-promised');
+const BCRYPT_ENABLE = false;
 module.exports = {
 
 
@@ -79,6 +80,7 @@ module.exports = {
                    //they are not in bad users list, proceed as normal
                     else {
                     //check given password vs password stored in our db
+                 if(BCRYPT_ENABLE){
                     bcrypt.compare(req.body.password, user.password)
                         .then(result => {
                             console.log("Successful Password Match")
@@ -154,17 +156,97 @@ module.exports = {
                            
                         
                         })
-    
                     }
-    
+                 //non bcrypt path
+                    else {
+                    if(req.body.password===user.password)
+                      {
+                        console.log("Successful Password Match")
+                        //store our session variable identifier
+                        Users.findOne({email: req.body.email}, function(err, user) {
+                        console.log("thiS USER:",user._id);
+                        req.session.userid = user._id;
+                        console.log("ID ",req.session.userid);
+                        req.session.email = req.body.email;
+                        console.log(req.session.email);
+                         req.session.save();
+                         res.json('valid');
+                        
+                                });
+                           }  
+                    
+                    else {
+                       if (typeof req.session.bad_list != 'undefined')   {
+                        bad_list = req.session.bad_list;
+                                                                  }
+                       if (typeof req.session.bad_users != 'undefined')   {
+                         bad_users = req.session.bad_users;
+                                                                        }
+                        console.log("BAD USERS!",bad_users)
+                        console.log("Password Mismatch");
+                        const i = bad_list.findIndex(o => o.email === req.body.email);
+                        console.log("BADLIST",bad_list);
+                        console.log("IIS",i)
+                       //is are user guilty of previous bad login attempts? branch here.
+                       // value is -1 if find is negative (??)
+                       if (i != -1)   {
+                           console.log("OLDBRANCH");
+                            bad_list[i].count++;
+                          console.log("BL",bad_list)
+                          console.log("COUNT:",bad_list[i].count)
+                          req.session.bad_list = bad_list;
+                          req.session.save();
+                          //if the badlogin count has reached 5 we add them to the "bad_users" list along with time in ms
+                          if(bad_list[i].count > 4)
+                          {
+                            console.log("GOT1!!!!!!!!!!!!!!!!!")
+                            bad_user.email = bad_list[i].email;
+                            bad_user.time = (new Date).getTime();
+                            bad_users.push(bad_user);
+                            //remove user from our 'bad list', because he is now in the bad_users array.
+                            bad_list.splice(i,1);
+                            req.session.bad_list = bad_list;
+                            req.session.bad_users=bad_users;
+                            req.session.save();
+                            console.log("BU",bad_user);                   
+                            console.log("NEW BAD LIST!!!!!!!!!!!!!!!!!!!!",req.session.bad_list);
+                            res.json('5timesbad');           
+                           }   
+                         //our bad login count is less than 5, just return an invalid credentials string
+                           else {
+                            res.json('invalidpassword');
+                               }
+                        
+                        }
+                        //if user is not in the bad_list, we will add him
+                        else{
+                          
+                            console.log("NEWBRANCH")
+                           bad_log.email = req.body.email;
+                         bad_log.count = 1;
+                         console.log("BADLOG",bad_log);
+                         bad_list.push(bad_log);
+                         req.session.bad_list = bad_list;
+                         req.session.save();
+                         console.log("BADLIST",req.session.bad_list);
+                         res.json('invalidpassword')
+                        }       
+                    }
+                  }         
+                
+                 }
+                
                 }
-    
+            
             }
+        
         })
-},
+    
+    },
  usersadd: function(req, res) {
      //const note = req.body;
      console.log("passed user:",req.body);
+   if(BCRYPT_ENABLE)  {
      bcrypt.hash(req.body.password, 10)
      .then(hashed_password => {
          console.log(hashed_password);
@@ -179,17 +261,40 @@ module.exports = {
         console.log(req.session.email);
          req.session.save();
          res.json('registered');
+        
         }) 
     })
-
+     
 
 
 
                               })
                    
-                   
-                   
-                    },
+                            }
+    //none bcrypt path
+                            else {
+        const user = new Users({firstname: req.body.firstname, lastname: req.body.lastname,
+            email: req.body.email, password: req.body.password});
+            user.save(function (err, saved) {
+                Users.findOne({email: req.body.email}, function(err, user) {
+                console.log("thiS USER:",user);
+                req.session.userid = user._id;
+                console.log("ID ",req.session.userid);
+                req.session.email = req.body.email;
+                console.log(req.session.email);
+                 req.session.save();
+                 res.json('registered');
+                
+                }) 
+            })
+   
+   
+   
+        }
+                  
+                  
+                  
+                        },
  
 
 
